@@ -1,19 +1,17 @@
-# Track B — Agentic AI MLOps: Prompt Versioning, Structured Tracing & Regression Testing
+# Track B: Agentic AI Assistant (Tracing & Evaluation)
 
-An end-to-end production MLOps pipeline for tracking, versioning, tracing, and regression testing an **Agentic AI Assistant** using **uv**, **MLflow**, **Evidently AI (`evidently[llm]`)**, and **Apache Airflow**.
+This track contains an agentic AI assistant and RAG pipeline with prompt versioning, structured trace logging, regression testing, and automated evaluation using `uv`, MLflow, Evidently AI, and Apache Airflow.
 
----
-
-## 📐 Agentic RAG Architecture
+## Agent Architecture
 
 ```mermaid
 graph TD
     User([User Query]) --> Model[LLM Agentic Controller]
     
     subgraph Multi-Tool Choice Matrix
-        Model -->|Call search_documents| SearchTool[search_documents Tool]
-        Model -->|Call calculator| CalcTool[calculator Tool]
-        Model -->|Call system_info| SysTool[system_info Tool]
+        Model -->|search_documents| SearchTool[search_documents Tool]
+        Model -->|calculator| CalcTool[calculator Tool]
+        Model -->|system_info| SysTool[system_info Tool]
     end
     
     SearchTool --> RetrievalPipeline[Hybrid Retrieval & Reranking]
@@ -22,120 +20,77 @@ graph TD
     ToolResult --> EvalStep{Model Evaluates Evidence}
     
     EvalStep -->|Sufficient Evidence| FinalAnswer[Generate Grounded Answer]
-    EvalStep -->|Weak Evidence / Reformulate| ContextClearing[Context Engineering: Clear Prior Tool Results]
-    EvalStep -->|No Info / Failure| ClarifyOrStop[State Insufficient Evidence / Ask Clarification]
+    EvalStep -->|Weak Evidence| ContextClearing[Clear Prior Tool Results]
+    EvalStep -->|No Information| ClarifyOrStop[State Insufficient Evidence]
     
-    ContextClearing --> IterationCheck{Check Iteration Cap\nmax_iterations = 4}
+    ContextClearing --> IterationCheck{Check Iteration Cap: max_iterations = 4}
     IterationCheck -->|Under Cap| Model
     IterationCheck -->|Cap Reached| FallbackStop[Stop Loop: Report Insufficient Evidence]
 ```
 
----
+## Environment Setup
 
-## a. Environment & Reproducibility (uv)
+Dependencies are locked with `uv.lock`. To set up the environment:
 
-### Dependency Management & Problems Solved by `uv`
-Agentic LLM and RAG systems rely on complex multi-framework dependency trees (`chromadb`, `sentence-transformers`, `openai`, `google-genai`, `rank-bm25`, `pydantic-settings`, `evidently`, `mlflow`, `torch`). Traditional `pip` environments frequently break due to wheel compilation conflicts, CUDA/PyTorch version mismatches, and transitive dependency drift.
-
-`uv` solves these issues by providing:
-1. **Deterministic Lockfile (`uv.lock`)**: Pinned hashes for 200+ direct and transitive packages.
-2. **Ultra-Fast Environment Sync**: Installs the complete virtual environment (`.venv`) in under 15 seconds.
-3. **Reproducible Execution**: Ensures exact parity between local development and production CI/CD.
-
-### One-Command Reproduction Path
-From a fresh clone of this repository, run:
 ```bash
-cd "Track_B"
+cd Track_B
 uv sync
 ```
-*Confirmation*: Running `uv sync` from a clean clone reproduces the entire virtual environment deterministically.
 
----
+## Experiment Tracking and Prompt Iteration (MLflow)
 
-## b. Experiment Tracking Strategy (MLflow)
+Agentic workloads require tracking configurations, prompt instructions, tool call sequences, and execution traces. We evaluated three versions of the system prompt (`prompt_v1`, `prompt_v2`, `prompt_v3`) across five test cases (`TC-1` to `TC-5`).
 
-### Experiment Setup & Metrics Measured
-Unlike classical ML models, agentic AI systems require tracking **configurations, prompts, agentic loop behavior, and step-by-step traces**.
-We evaluated **3 versioned system prompts** (`prompt_v1`, `prompt_v2`, `prompt_v3`) alongside varied agent parameters (`temperature`, `fusion_top_k`, `final_top_k`, `max_iterations`, `chunking_strategy`).
+Each run logged structured JSON traces into MLflow containing:
+- Sequence of tool calls, inputs, and outputs.
+- Step-by-step agent reasoning.
+- Iteration count and termination status (`success`, `refusal`, or `unhandled_failure`).
+- Latency and token consumption metrics.
 
-For each version, 5 representative test cases (`TC-1` to `TC-5`) were executed, capturing full structured JSON traces containing:
-- Step-by-step tool calls, arguments, and raw results.
-- Model reasoning and query decomposition steps.
-- Total iterations used and termination reason (`success`, `refusal`, `unhandled_failure`).
-- Latency (ms) and token consumption (`prompt_tokens`, `completion_tokens`, `total_tokens`).
+### Prompt Iteration Summary
 
-### Trace-Driven Prompt Engineering Rationale
+1. **`prompt_v1` (Naive Baseline)**
+   - *Config*: `temperature=0.7`, `fusion_top_k=3`, `max_iterations=2`.
+   - *Trace Analysis*: Failed `TC-2` because it executed a single search and missed the second part of a multi-part question. Failed `TC-4` and `TC-5` by hallucinating answers for out-of-domain queries.
 
-Every prompt iteration was a **direct response to a specific traced failure** from the previous version:
+2. **`prompt_v2` (Query Decomposition Rule)**
+   - *Config*: `temperature=0.2`, `fusion_top_k=5`, `max_iterations=3`.
+   - *Changes*: Added explicit system instructions to split complex user queries into sub-searches.
+   - *Trace Analysis*: Fixed `TC-2`. The agent executed separate searches for each part of the question. Still failed out-of-domain test cases (`TC-4` and `TC-5`).
 
-```
-[prompt_v1 (40% Pass)]
-   │
-   ├─► Traced Failure in TC-2: Single-pass search omitted 2nd part of multi-fact query.
-   │   └─► FIX: Introduced explicit query decomposition & multi-search rule.
-   ▼
-[prompt_v2 (60% Pass)]
-   │
-   ├─► Traced Failure in TC-4 & TC-5: Hallucinated out-of-domain answers & mishandled tool errors.
-   │   └─► FIX: Enforced strict grounding refusal policy & zero temperature (T=0.0).
-   ▼
-[prompt_v3 (100% Pass - Winner!)]
-```
+3. **`prompt_v3` (Strict Grounding and Refusal Rule)**
+   - *Config*: `temperature=0.0`, `fusion_top_k=5`, `max_iterations=4`.
+   - *Changes*: Added strict refusal rules instructing the agent to explicitly state when provided documents lack sufficient context.
+   - *Trace Analysis*: Passed all five test cases (100% pass rate). Correctly issued standard refusal messages for out-of-domain queries without hallucinating.
 
-1. **`prompt_v1` (Baseline Naive Prompt)**:
-   - *Config*: `T=0.7`, `fusion_top_k=3`, `final_top_k=3`, `max_iterations=2`.
-   - *Traced Failure (TC-2)*: On complex multi-fact query ("What is the annual equipment stipend AND how does hybrid retrieval fuse candidate documents?"), `prompt_v1` stopped after 1 search iteration, returning the $500 stipend but completely omitting the hybrid retrieval RRF fusion explanation.
-   - *Traced Failure (TC-4 & TC-5)*: Hallucinated speculative answers for out-of-domain queries instead of refusing.
+### Prompt Comparison Results
 
-2. **`prompt_v2` (Trace-Guided Fix 1: Multi-Fact Query Decomposition)**:
-   - *Config*: `T=0.2`, `fusion_top_k=5`, `final_top_k=5`, `max_iterations=3`.
-   - *Direct Response*: System prompt instructed explicit sub-query decomposition for multi-part questions.
-   - *Result*: **Fixed TC-2!** The agent decomposed the query into two sub-searches, correctly retrieving both the $500 stipend and RRF fusion mechanism.
-   - *Remaining Failure*: Still hallucinated answers for TC-4 (space travel expenses) and TC-5 (injected tool error).
-
-3. **`prompt_v3` (Trace-Guided Fix 2: Strict Grounding & Refusal Policy)**:
-   - *Config*: `T=0.0`, `fusion_top_k=5`, `final_top_k=5`, `max_iterations=4`.
-   - *Direct Response*: Added strict zero-hallucination refusal rules: *"If retrieved context is missing, low confidence, or outside document domain, respond EXPLICITLY: 'I could not find sufficient information in the provided documents to answer that question.'"*
-   - *Result*: **Achieved 100% Pass Rate!** Correctly issued structured refusal reports for TC-4 and TC-5 while maintaining 100% accuracy on factual queries.
-
-### Actual MLflow Run Comparison Table
-
-| Prompt Version | Pass Rate (%) | Passed Cases | Avg Tokens / Query | Avg Latency (ms) | Key Configuration | Trace-Driven Diagnosis & Fix Target |
+| Prompt Version | Pass Rate | Passed Cases | Avg Tokens / Query | Avg Latency | Primary Configuration | Focus / Fix |
 | :--- | :---: | :---: | :---: | :---: | :--- | :--- |
-| **`prompt_v1`** | 40.0% | 2 / 5 | 406.0 | 538.85 ms | `T=0.7`, `top_k=3`, `max_iter=2` | Baseline naive prompt. Failed TC-2 (multi-fact omission), TC-4 (hallucination), TC-5 (error handling). |
-| **`prompt_v2`** | 60.0% | 3 / 5 | 424.6 | 332.59 ms | `T=0.2`, `top_k=5`, `max_iter=3` | **Fix 1**: Query decomposition rule. Successfully fixed TC-2 multi-fact search omission. |
-| **`prompt_v3`** | **100.0%** | **5 / 5** | **436.4** | **676.24 ms** | `T=0.0`, `top_k=5`, `max_iter=4` | **Fix 2**: Zero-temp strict grounding refusal rule. Successfully fixed TC-4 refusal and TC-5 tool error resilience. |
+| `prompt_v1` | 40.0% | 2 / 5 | 406.0 | 538.85 ms | `T=0.7`, `top_k=3`, `max_iter=2` | Initial prompt baseline |
+| `prompt_v2` | 60.0% | 3 / 5 | 424.6 | 332.59 ms | `T=0.2`, `top_k=5`, `max_iter=3` | Added query decomposition instructions |
+| **`prompt_v3`** | **100.0%** | **5 / 5** | **436.4** | **676.24 ms** | `T=0.0`, `top_k=5`, `max_iter=4` | Added strict refusal policy and zero temperature |
 
-- **Winning Version**: **`prompt_v3`**.
-- **Trade-off Analysis**: `prompt_v3` incurs a minor token cost increase (+7.4% vs v1) and higher latency (+137.39 ms vs v1) due to thorough multi-step sub-query searches and strict verification loops. However, this trade-off is essential to eliminate hallucination risks (improving pass rate from 40% to 100%).
+`prompt_v3` adds slight latency (+137 ms) and token overhead due to sub-query expansion and grounding checks, but eliminates hallucinations across the test suite.
 
----
-
-## c. Monitoring & Drift Strategy (Evidently AI)
+## Evaluation and Regression Testing (Evidently AI)
 
 ### Golden Reference Dataset
-Evaluation is conducted against a curated **Golden Reference Dataset** (`eval/golden_dataset.py`) containing 5 representative benchmark test cases paired with approved golden answers and expected refusal flags:
-- `TC-1` (Simple Factual): 20 business days annual leave.
-- `TC-2` (Multi-Fact / Complex): $500 home office stipend + RRF hybrid retrieval fusion.
-- `TC-3` (Architecture Factual): Dual ChromaDB/BM25 indexing and recursive/semantic chunking.
-- `TC-4` (Out-of-Domain Refusal): Interdimensional space travel expenses (Expected Refusal).
-- `TC-5` (Injected Tool Failure): Index connection timeout error handling (Expected Refusal).
+Tests were evaluated against a golden reference dataset (`eval/golden_dataset.py`):
+- `TC-1` (Factual): Annual leave policy query.
+- `TC-2` (Complex Multi-Fact): Stipend details combined with hybrid retrieval mechanics.
+- `TC-3` (Technical Architecture): Dual indexing and chunking queries.
+- `TC-4` (Out-of-Domain): Space travel expense query (expected refusal).
+- `TC-5` (Tool Error): Simulated index connection failure (expected refusal).
 
-### Evidently LLM Test Suite Execution
-After every prompt or configuration update, `eval/run_prompt_experiments.py` runs the Evidently Test Suite (`eval/regression_testing.py`):
-1. **Reference-Based Correctness Check**: Evaluates whether the agent's new response contradicts or loses information present in the golden answer (`evaluate_reference_correctness`).
-2. **Completeness & Refusal Integrity Check**: Validates that refusal queries correctly output the mandated refusal phrase without hallucinating facts.
-3. **HTML Report Generation**: Exports complete interactive HTML test reports to `reports/agent_regression_report.html`.
-4. **MLflow Integration**: Logs `pct_tests_passed` metric and structured trace JSON artifacts (`traces/TC-1_trace.json`, etc.) to MLflow.
+### Running Evaluation
+Run the prompt experiment script to generate traces and Evidently reports:
+```bash
+uv run python eval/run_prompt_experiments.py
+```
 
-### Regression Prevention Rules
-Any prompt version achieving `< 100%` pass rate is treated as a **regression failure** and blocked from production deployment.
+The script evaluates output correctness against golden responses, verifies refusal compliance, generates an HTML report at `reports/agent_regression_report.html`, and logs evaluation metrics to MLflow.
 
----
+## Airflow DAG Orchestration
 
-## d. Orchestration (Airflow DAG)
-
-An Apache Airflow DAG (`dags/agent_eval_dag.py`) automates regression testing:
-- **Schedule**: Daily at 2:00 AM (`0 2 * * *`).
-- **Execution**: Runs `eval/run_prompt_experiments.py` inside the `uv` environment.
-- **Trigger Condition & Action**: Evaluates the pass rate of `prompt_v3`. If pass rate falls below 100%, logs a high-priority alert (`[ALERT] Regression detected! Agent pass rate degraded below target threshold`) and halts automated deployment.
+An Airflow DAG (`dags/agent_eval_dag.py`) runs nightly at 2:00 AM (`0 2 * * *`). It executes the evaluation suite and triggers an alert if the pass rate drops below 100%.

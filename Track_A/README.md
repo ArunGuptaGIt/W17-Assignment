@@ -1,10 +1,8 @@
-# Track A — Data Science MLOps (Telco Customer Churn)
+# Track A: Data Science MLOps (Telco Customer Churn)
 
-An end-to-end production MLOps pipeline for Telco Customer Churn prediction using **uv**, **MLflow**, **Evidently AI**, **FastAPI**, and **Apache Airflow**.
+This track implements an end-to-end production MLOps pipeline for Telco Customer Churn prediction using `uv`, MLflow, Evidently AI, FastAPI, and Apache Airflow.
 
----
-
-## 📐 Pipeline Architecture
+## Pipeline Architecture
 
 ```mermaid
 graph TD
@@ -12,77 +10,66 @@ graph TD
     DataPrep --> Preprocessor[ColumnTransformer: OneHot + StandardScaler]
     
     subgraph Multi-Model Training Matrix
-        Preprocessor --> Model1[Logistic Regression: C=0.1]
-        Preprocessor --> Model2[Random Forest: depth=6]
-        Preprocessor --> Model3[XGBoost Classifier: lr=0.05]
+        Preprocessor --> Model1[Logistic Regression]
+        Preprocessor --> Model2[Random Forest]
+        Preprocessor --> Model3[XGBoost Classifier]
     end
 
-    Model1 --> MLflowTrack[MLflow Experiment Tracking: Metrics, Plots, Artifacts]
+    Model1 --> MLflowTrack[MLflow Tracking: Metrics & Artifacts]
     Model2 --> MLflowTrack
     Model3 --> MLflowTrack
 
-    MLflowTrack --> ModelSelection{Select Best Model: F1 & ROC-AUC}
-    ModelSelection -->|Winner: XGBoost| Registry[MLflow Model Registry: telco_churn_model]
+    MLflowTrack --> ModelSelection{Select Best Model by F1 & ROC-AUC}
+    ModelSelection -->|Selected: XGBoost| Registry[MLflow Model Registry: telco_churn_model]
     
-    Registry --> StageTransition[Transition: Staging -> Production]
+    Registry --> StageTransition[Transition: Staging to Production]
     StageTransition --> Serving[FastAPI Serving Endpoint: /predict]
     
-    subgraph Continuous Monitoring & Governance
+    subgraph Monitoring & Governance
         DataPrep --> Split[Split: 70% Reference / 30% Current]
-        Split --> SyntheticDrift[Inject Synthetic Drift: Noise, Skew, Target Flip]
-        SyntheticDrift --> Evidently[Evidently AI Reports: Data & Target Drift + Custom Metric]
-        Evidently --> AirflowDAG[Apache Airflow DAG: Daily Drift Check & Alerting]
+        Split --> SyntheticDrift[Inject Synthetic Drift]
+        SyntheticDrift --> Evidently[Evidently AI Reports: Data & Target Drift]
+        Evidently --> AirflowDAG[Apache Airflow DAG: Daily Drift Check]
     end
 ```
 
----
+## Environment Setup and Reproducibility
 
-## a. Environment & Reproducibility (uv)
+Dependencies are managed using `uv` with a committed `uv.lock` file. This replaces `pip` and `conda` to prevent version mismatches across environments and speed up installation.
 
-### Dependency Management & Problems Solved by `uv`
-Traditional Python package management (`pip` + `requirements.txt` or `conda`) frequently suffers from resolution non-determinism, slow install times, transitive dependency drift, and C-extension compilation mismatches across machine environments (e.g., conflicting `scikit-learn`, `xgboost`, `evidently`, and `mlflow` dependency trees).
-
-`uv` solves these issues by providing:
-1. **Deterministic Lockfile (`uv.lock`)**: Pinning exact package versions and hashes for 159 direct and transitive dependencies.
-2. **Lightning-Fast Execution**: Built in Rust, environment resolution and installation complete in under 5 seconds.
-3. **Clean Isolation**: Automatic virtual environment creation (`.venv`) adhering strictly to PEP 517/621 specs.
-
-### One-Command Reproduction Path
-From a fresh clone of this repository, run:
+To set up the environment from a fresh clone:
 ```bash
-cd "Track_A"
+cd Track_A
 uv sync
 ```
-*Confirmation*: Running `uv sync` from a clean clone installs all exact pinned dependencies into `.venv` without manual intervention or conflict.
 
----
+Running `uv sync` installs the exact pinned dependencies into `.venv`.
 
-## b. Experiment Tracking Strategy (MLflow)
+## Experiment Tracking with MLflow
 
-### Experiment Setup & Metrics Measured
-We trained three distinct model families on the Telco Customer Churn dataset (`dataset/telco_churn.csv`, ~7,000 rows, binary target `Churn`), addressing class imbalance (approx. 73% No Churn vs 27% Churn).
-- **Preprocessing**: Dropped `customerID`, imputed missing `TotalCharges` with median, One-Hot Encoded categorical variables, and standardized numerical features (`tenure`, `MonthlyCharges`, `TotalCharges`).
+We trained three model families on the Telco Customer Churn dataset (`dataset/telco_churn.csv`, 7,043 rows, target `Churn`):
+- **Data Preprocessing**: Handled missing values in `TotalCharges`, one-hot encoded categorical columns, and scaled numerical features (`tenure`, `MonthlyCharges`, `TotalCharges`).
 - **Models Evaluated**:
-  1. **Logistic Regression**: `C=0.1`, `penalty='l2'`, `solver='lbfgs'`, `max_iter=1000`
-  2. **Random Forest Classifier**: `n_estimators=100`, `max_depth=6`, `min_samples_split=5`
-  3. **XGBoost Classifier**: `n_estimators=150`, `max_depth=4`, `learning_rate=0.05`, `subsample=0.8`
+  1. **Logistic Regression**: `C=0.1`, L2 regularization.
+  2. **Random Forest Classifier**: 100 trees, max depth of 6.
+  3. **XGBoost Classifier**: 150 estimators, max depth of 4, learning rate 0.05.
 
-For every run, hyperparameters, evaluation metrics (`accuracy`, `precision`, `recall`, `f1`, `roc_auc`), confusion matrix plots, ROC curve plots, and serialized pipelines were logged to MLflow under the experiment `telco_churn_experiment`.
+All metrics (`accuracy`, `precision`, `recall`, `f1`, `roc_auc`), plots (confusion matrices, ROC curves), and pipelines were logged under the MLflow experiment `telco_churn_experiment`.
 
-### Actual MLflow Run Comparison Table
+### Model Evaluation Results
 
-| Model Family | Accuracy | Precision | Recall | F1 Score | ROC-AUC | MLflow Artifacts Logged |
+| Model Family | Accuracy | Precision | Recall | F1 Score | ROC-AUC | Logged Artifacts |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Logistic Regression** | 0.7999 | 0.6456 | 0.5455 | 0.5913 | 0.8409 | Pipeline model, `confusion_matrix.png`, `roc_curve.png` |
-| **Random Forest** | 0.7999 | 0.6825 | 0.4599 | 0.5495 | 0.8415 | Pipeline model, `confusion_matrix.png`, `roc_curve.png` |
-| **XGBoost Classifier** | **0.8070** | **0.6735** | **0.5294** | **0.5928** | **0.8473** | Pipeline model, `confusion_matrix.png`, `roc_curve.png` |
+| Logistic Regression | 0.7999 | 0.6456 | 0.5455 | 0.5913 | 0.8409 | Pipeline, confusion matrix, ROC curve |
+| Random Forest | 0.7999 | 0.6825 | 0.4599 | 0.5495 | 0.8415 | Pipeline, confusion matrix, ROC curve |
+| **XGBoost Classifier** | **0.8070** | **0.6735** | **0.5294** | **0.5928** | **0.8473** | Pipeline, confusion matrix, ROC curve |
 
-### Model Selection & Registry Justification
-- **Winning Model**: **XGBoost Classifier**.
-- **Justification**: On an imbalanced dataset like Telco Churn, overall accuracy (e.g. ~80%) is misleading because a naive model predicting all non-churn achieves ~73% accuracy while failing to identify any at-risk customers. **XGBoost achieved the highest F1 Score (0.5928), highest Accuracy (0.8070), and highest ROC-AUC (0.8473)**. While Logistic Regression achieved slightly higher recall (0.5455 vs 0.5294), XGBoost provided a superior balance of precision (0.6735 vs 0.6456) and better probability calibration across thresholds.
-- **MLflow Model Registry**: The winning XGBoost pipeline model was registered in the MLflow Model Registry as `telco_churn_model` and transitioned through two stages: `Staging` $\rightarrow$ `Production`.
+### Model Selection Rationale
+Due to class imbalance in churn data (73% non-churn, 27% churn), accuracy alone is not a sufficient metric. **XGBoost achieved the highest F1 Score (0.5928)** and highest ROC-AUC (0.8473), offering the best balance between precision (0.6735) and recall (0.5294).
 
-### Model Performance Plots (Tracked Artifacts)
+The trained XGBoost pipeline was registered in the MLflow Model Registry as `telco_churn_model` and transitioned from Staging to Production.
+
+### Evaluation Plots
 
 | XGBoost Confusion Matrix | XGBoost ROC Curve |
 | :---: | :---: |
@@ -92,22 +79,19 @@ For every run, hyperparameters, evaluation metrics (`accuracy`, `precision`, `re
 | :---: | :---: |
 | ![Logistic Regression Confusion Matrix](docs/images/confusion_matrix_logistic_regression.png) | ![Random Forest Confusion Matrix](docs/images/confusion_matrix_random_forest.png) |
 
----
-
 ## Model Serving
 
-The production model is served via a lightweight FastAPI REST API (`serve.py`) that loads the model directly from the MLflow registry URI (`models:/telco_churn_model/Production`).
+The Production model is served using a FastAPI application (`serve.py`) that loads `models:/telco_churn_model/Production` directly from MLflow.
 
-### Running the Server
+### Starting the Server
 ```bash
 uv run python serve.py
 ```
 
-### Sample Request & Response
+### Example `/predict` Request and Response
 
-#### POST `/predict` (Single Customer Request)
+Request payload:
 ```json
-// Request Payload
 {
   "gender": "Female",
   "SeniorCitizen": 0,
@@ -129,8 +113,10 @@ uv run python serve.py
   "MonthlyCharges": 29.85,
   "TotalCharges": 29.85
 }
+```
 
-// Response (200 OK)
+Response:
+```json
 {
   "status": "success",
   "predictions": [
@@ -143,34 +129,27 @@ uv run python serve.py
 }
 ```
 
----
+## Data and Target Drift Monitoring (Evidently AI)
 
-## c. Monitoring & Drift Strategy (Evidently AI)
+### Reference vs Current Datasets
+- **Reference Dataset**: 70% split of clean baseline data (4,930 rows).
+- **Current Dataset**: 30% holdout split (2,113 rows) with artificial drift injected:
+  1. Feature noise applied to `MonthlyCharges` and `tenure`.
+  2. Categorical distribution shift on `Contract` (85% month-to-month).
+  3. Target label flipping on 20% of sample rows.
 
-### Reference vs. Current Datasets
-- **Reference Dataset**: 70% of historical clean dataset (4,930 rows) used to establish baseline feature distributions and target behavior.
-- **Current Dataset**: 30% of holdout dataset (2,113 rows) injected with synthetic production drift:
-  1. *Numeric Noise*: Scaled and shifted `MonthlyCharges` ($\times 1.35 + \mathcal{N}(15, 5)$) and `tenure` ($\times 0.6 + \mathcal{N}(-5, 2)$).
-  2. *Categorical Skew*: Skewed `Contract` distribution to 85% `"Month-to-month"`.
-  3. *Target Label Drift*: Flipped 20% of `Churn` target labels.
+### Drift Detection Results
+1. **Data Drift Report (`reports/data_drift_report.html`)**: Flagged statistically significant drift in `MonthlyCharges`, `tenure`, and `Contract`.
+2. **Target Drift Report (`reports/target_drift_report.html`)**: Detected shift in the target variable `Churn`.
+3. **Custom Segment Metric**: Tracked `MonthlyCharges` shift for month-to-month contracts:
+   - Reference mean: **$66.58**
+   - Current mean: **$102.56**
+   - Shift: **+$35.98**
+4. Reports and metrics were logged to MLflow under experiment `telco_churn_monitoring`.
 
-### Reports Generated & Key Findings
-1. **Data Drift Report (`reports/data_drift_report.html`)**: Successfully detected significant statistical drift in all 3 perturbed feature columns (`MonthlyCharges`, `tenure`, `Contract`).
-2. **Target Drift Report (`reports/target_drift_report.html`)**: Correctly flagged target label distribution shift between reference and current periods.
-3. **Custom Metric**: Evaluated segment-level drift for `MonthlyCharges` within `Contract == "Month-to-month"`.
-   - *Reference Mean*: **$66.58**
-   - *Current Mean*: **$102.56**
-   - *Segment Shift*: **+$35.98**
-4. **MLflow Integration**: Saved generated HTML reports and custom metrics to MLflow under experiment `telco_churn_monitoring` (run `a039de6e84e44f17992a8d720893459b`).
+### Alert Strategy
+If drift is detected in over 20% of features or segment shift exceeds $15.00, the system triggers an alert to initiate model retraining.
 
-### Action Plan on Drift Threshold Breach
-If feature drift is detected on $>20\%$ of features or custom segment shift exceeds $\pm \$15.00$, the system triggers an automated alert, flags the model for retraining, and routes inference to a conservative fallback heuristic.
+## Airflow DAG Orchestration
 
----
-
-## d. Orchestration (Airflow DAG)
-
-An Apache Airflow DAG (`dags/telco_churn_drift_dag.py`) is provided:
-- **Schedule**: Daily at midnight (`0 0 * * *`).
-- **Execution**: Executes `drift_monitoring.py` inside the `uv` virtualenv, logs report artifacts to MLflow, and evaluates drift detection outputs.
-- **Trigger Action**: If drift status evaluates to `True`, logs an automated governance alert and triggers a downstream model retraining pipeline.
+An Airflow DAG (`dags/telco_churn_drift_dag.py`) runs daily at midnight (`0 0 * * *`). It executes `drift_monitoring.py` via `uv`, logs the results to MLflow, and sends an alert if drift thresholds are breached.
