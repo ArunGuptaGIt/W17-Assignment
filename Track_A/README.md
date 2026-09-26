@@ -60,9 +60,9 @@ All metrics (`accuracy`, `precision`, `recall`, `f1`, `roc_auc`), plots (confusi
 
 | Model Family | Accuracy | Precision | Recall | F1 Score | ROC-AUC | Logged Artifacts |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| Logistic Regression | 0.7999 | 0.6456 | 0.5455 | 0.5913 | 0.8409 | Pipeline, confusion matrix, ROC curve |
-| Random Forest | 0.7999 | 0.6825 | 0.4599 | 0.5495 | 0.8415 | Pipeline, confusion matrix, ROC curve |
-| **XGBoost Classifier** | **0.8070** | **0.6735** | **0.5294** | **0.5928** | **0.8473** | Pipeline, confusion matrix, ROC curve |
+| Logistic Regression | 0.7999 | 0.6456 | 0.5455 | 0.5913 | 0.8409 | Pipeline, [confusion matrix](docs/images/confusion_matrix_logistic_regression.png), [ROC curve](docs/images/roc_curve_logistic_regression.png) |
+| Random Forest | 0.7999 | 0.6825 | 0.4599 | 0.5495 | 0.8415 | Pipeline, [confusion matrix](docs/images/confusion_matrix_random_forest.png), [ROC curve](docs/images/roc_curve_random_forest.png) |
+| **XGBoost Classifier** | **0.8070** | **0.6735** | **0.5294** | **0.5928** | **0.8473** | Pipeline, [confusion matrix](docs/images/confusion_matrix_xgboost.png), [ROC curve](docs/images/roc_curve_xgboost.png) |
 
 ### Model Selection Rationale
 Due to class imbalance in churn data (73% non-churn, 27% churn), accuracy alone is not a sufficient metric. **XGBoost achieved the highest F1 Score (0.5928)** and highest ROC-AUC (0.8473), offering the best balance between precision (0.6735) and recall (0.5294).
@@ -71,13 +71,20 @@ The trained XGBoost pipeline was registered in the MLflow Model Registry as `tel
 
 ### Evaluation Plots
 
+#### XGBoost Classifier (Production Model)
 | XGBoost Confusion Matrix | XGBoost ROC Curve |
 | :---: | :---: |
-| ![XGBoost Confusion Matrix](docs/images/confusion_matrix_xgboost.png) | ![XGBoost ROC Curve](docs/images/roc_curve_xgboost.png) |
+| [![XGBoost Confusion Matrix](docs/images/confusion_matrix_xgboost.png)](docs/images/confusion_matrix_xgboost.png) | [![XGBoost ROC Curve](docs/images/roc_curve_xgboost.png)](docs/images/roc_curve_xgboost.png) |
 
-| Logistic Regression Confusion Matrix | Random Forest Confusion Matrix |
+#### Logistic Regression
+| Logistic Regression Confusion Matrix | Logistic Regression ROC Curve |
 | :---: | :---: |
-| ![Logistic Regression Confusion Matrix](docs/images/confusion_matrix_logistic_regression.png) | ![Random Forest Confusion Matrix](docs/images/confusion_matrix_random_forest.png) |
+| [![Logistic Regression Confusion Matrix](docs/images/confusion_matrix_logistic_regression.png)](docs/images/confusion_matrix_logistic_regression.png) | [![Logistic Regression ROC Curve](docs/images/roc_curve_logistic_regression.png)](docs/images/roc_curve_logistic_regression.png) |
+
+#### Random Forest Classifier
+| Random Forest Confusion Matrix | Random Forest ROC Curve |
+| :---: | :---: |
+| [![Random Forest Confusion Matrix](docs/images/confusion_matrix_random_forest.png)](docs/images/confusion_matrix_random_forest.png) | [![Random Forest ROC Curve](docs/images/roc_curve_random_forest.png)](docs/images/roc_curve_random_forest.png) |
 
 ## Model Serving
 
