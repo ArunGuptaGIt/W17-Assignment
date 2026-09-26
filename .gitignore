@@ -1,0 +1,72 @@
+# =====================================================================
+# Comprehensive Root .gitignore for MLOps Platform (Track_A & Track_B)
+# =====================================================================
+
+# 1. Virtual Environments (uv / venv / conda)
+.venv/
+venv/
+ENV/
+env/
+.venv*/
+dataset/
+
+# 2. Python Bytecode, Cache & Build Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 3. MLflow Local Databases, Tracking Runs & Serialized Model Binaries
+mlruns/
+*/mlruns/
+*.db
+mlflow.db
+*.sqlite3
+*.skops
+*.joblib
+*.pkl
+*.h5
+*.pth
+*.pt
+*.bin
+
+# 4. Track_B Heavy Runtime Data, Vector Databases & Model Binaries
+Track_B/data/chroma_db/
+Track_B/data/indexes/
+Track_B/data/onnx_model/
+Track_B/data/documents/
+data/chroma_db/
+data/indexes/
+data/onnx_model/
+data/documents/
+*.onnx
+*.onnx.data
+
+# 6. Legacy Spaced Directories
+Track A/
+Track B/
+Track%20A/
+Track%20B/
+
+# 7. IDEs, Editors & Operating System Artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 8. Local Logs, Secrets & Temporary Directories
+*.log
+.env
+!.env.example
+/tmp/
+scratch/
+.ipynb_checkpoints/

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "q1",
+    "question": "What core architectural principles does the RAG system follow regarding chunking and retrieval?",
+    "relevant_documents": ["sample_rag_docs.txt"],
+    "relevant_pages": [1],
+    "keywords": ["chunking strategy", "recursive", "semantic", "retrieval mode", "dense", "bm25", "hybrid", "reranking"],
+    "expected_answer": "The system separates chunking strategy (recursive vs semantic), retrieval mode (dense, bm25, hybrid), and reranking (enabled vs disabled), treating them as independent dimensions."
+  },
+  {
+    "id": "q2",
+    "question": "How does hybrid retrieval fuse candidate documents and what smoothing constant is used?",
+    "relevant_documents": ["sample_rag_docs.txt"],
+    "relevant_pages": [1],
+    "keywords": ["Reciprocal Rank Fusion", "RRF", "RRF_K=60", "Top 10", "Top 20", "cross-encoder", "Top 5"],
+    "expected_answer": "Hybrid retrieval fuses candidate documents from ChromaDB vector search and persistent BM25 search using Reciprocal Rank Fusion with smoothing constant RRF_K=60."
+  },
+  {
+    "id": "q3",
+    "question": "How is the local LLM served and tuned for the 4GB RTX 3050 GPU constraint?",
+    "relevant_documents": ["sample_rag_docs.txt"],
+    "relevant_pages": [1],
+    "keywords": ["vLLM", "Llama 3.2 1B", "AWQ", "4GB", "gpu_memory_utilization", "max_model_len", "CPU reranking"],
+    "expected_answer": "The local model is served via vLLM using Llama 3.2 1B Instruct AWQ with conservative gpu_memory_utilization and max_model_len settings, with cross-encoder reranking executed on CPU."
+  },
+  {
+    "id": "q4",
+    "question": "How many business days of paid annual leave are employees entitled to per calendar year?",
+    "relevant_documents": ["sample_policy.txt"],
+    "relevant_pages": [1],
+    "keywords": ["20 business days", "paid annual leave", "calendar year", "HR portal"],
+    "expected_answer": "Employees are entitled to 20 business days of paid annual leave per calendar year."
+  },
+  {
+    "id": "q5",
+    "question": "What is the annual equipment reimbursement stipend provided for home office setups?",
+    "relevant_documents": ["sample_policy.txt"],
+    "relevant_pages": [1],
+    "keywords": ["$500 annual stipend", "equipment reimbursement", "home office", "ergonomic chairs", "monitors"],
+    "expected_answer": "The company provides a $500 annual stipend for home office equipment reimbursement."
+  }
+]

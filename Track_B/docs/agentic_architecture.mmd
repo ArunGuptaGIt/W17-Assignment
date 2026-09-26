@@ -1,0 +1,21 @@
+graph TD
+    User([User Query]) --> Model[LLM Agentic Controller]
+    
+    subgraph Multi-Tool Choice Matrix
+        Model -->|Call search_documents| SearchTool[search_documents Tool]
+        Model -->|Call calculator| CalcTool[calculator Tool]
+        Model -->|Call system_info| SysTool[system_info Tool]
+    end
+    
+    SearchTool --> RetrievalPipeline[Hybrid Retrieval & Reranking]
+    RetrievalPipeline --> ToolResult[Tool Result & Confidence Scores]
+    
+    ToolResult --> EvalStep{Model Evaluates Evidence}
+    
+    EvalStep -->|Sufficient Evidence| FinalAnswer[Generate Grounded Answer]
+    EvalStep -->|Weak Evidence / Reformulate| ContextClearing[Context Engineering: Clear Prior Tool Results]
+    EvalStep -->|No Info / Failure| ClarifyOrStop[State Insufficient Evidence / Ask Clarification]
+    
+    ContextClearing --> IterationCheck{Check Iteration Cap\nmax_iterations = 4}
+    IterationCheck -->|Under Cap| Model
+    IterationCheck -->|Cap Reached| FallbackStop[Stop Loop: Report Insufficient Evidence]

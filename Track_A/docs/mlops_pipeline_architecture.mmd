@@ -1,0 +1,26 @@
+graph TD
+    RawData[Raw Telco Churn CSV Dataset] --> DataPrep[Data Preprocessing & Cleaning]
+    DataPrep --> Preprocessor[ColumnTransformer: OneHot + StandardScaler]
+    
+    subgraph Multi-Model Training Matrix
+        Preprocessor --> Model1[Logistic Regression: C=0.1]
+        Preprocessor --> Model2[Random Forest: depth=6]
+        Preprocessor --> Model3[XGBoost Classifier: lr=0.05]
+    end
+
+    Model1 --> MLflowTrack[MLflow Experiment Tracking: Metrics, Plots, Artifacts]
+    Model2 --> MLflowTrack
+    Model3 --> MLflowTrack
+
+    MLflowTrack --> ModelSelection{Select Best Model: F1 & ROC-AUC}
+    ModelSelection -->|Winner: XGBoost| Registry[MLflow Model Registry: telco_churn_model]
+    
+    Registry --> StageTransition[Transition: Staging -> Production]
+    StageTransition --> Serving[FastAPI Serving Endpoint: /predict]
+    
+    subgraph Continuous Monitoring & Governance
+        DataPrep --> Split[Split: 70% Reference / 30% Current]
+        Split --> SyntheticDrift[Inject Synthetic Drift: Noise, Skew, Target Flip]
+        SyntheticDrift --> Evidently[Evidently AI Reports: Data & Target Drift + Custom Metric]
+        Evidently --> AirflowDAG[Apache Airflow DAG: Daily Drift Check & Alerting]
+    end
